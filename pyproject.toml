@@ -6,8 +6,9 @@ authors = [
     {name = "Maximilian Jugl", email = "Maximilian.Jugl@medizin.uni-leipzig.de"}
 ]
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<4.0"
 dependencies = [
+    "flame @ file:///Users/sesame/halta/python-sdk-patterns"
 ]
 license = "Apache-2.0"
 

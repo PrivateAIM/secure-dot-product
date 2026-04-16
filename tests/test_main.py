@@ -1,4 +1,4 @@
-from project.main import add
+from secureDotProduct.main import add
 
 
 def test_add():
