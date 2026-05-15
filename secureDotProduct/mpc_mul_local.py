@@ -1,10 +1,13 @@
+import random
 import secrets
-from flame.star import StarAnalyzer, StarAggregator
+from flame.star import StarAnalyzer, StarAggregator, StarModelTester
 
 # --- CONFIGURATION ---
 RING_BITS = 64
 MASK = (1 << RING_BITS) - 1
 PRECISION_BITS = 16  # Fixed-point precision (f)
+
+
 # RINGSIZE = 10000  # Define a smaller ring size for testing purposes
 
 
@@ -28,12 +31,38 @@ class BeaverMultiplicationAnalyzer(StarAnalyzer):
         return int(round(val * (1 << self.f))) & self.mask
 
     def _get_beaver_triple(self):
-        # Beaver triple components: (A=12, B=6, C=72)
-        # TODO get this from the trusted proxy in the real implementation
+        # TODO get this from the trusted proxy in the real implementation.
+        # Simulating the proxy locally: both parties derive the SAME (A,B,C)
+        # and share split from a shared seed, then each returns only its own
+        # share. With secrets.randbits each party would generate a different
+        # triple and the shares would not reconstruct.
+        rng = random.Random(0xBEA4_BEA4)
+        A = rng.getrandbits(64) & self.mask
+        B = rng.getrandbits(64) & self.mask
+        # C = A * B in the ring. FX truncation is applied locally to z_i after
+        # multiplication; baking >>f into C here would conflict with that.
+        C = (A * B) & self.mask
+        print(f"Generated Beaver triple (A, B, C): ({A}, {B}, {C})")
+        a_0 = rng.getrandbits(64) & self.mask
+        b_0 = rng.getrandbits(64) & self.mask
+        c_0 = rng.getrandbits(64) & self.mask
+        a_1 = (A - a_0) & self.mask
+        b_1 = (B - b_0) & self.mask
+        c_1 = (C - c_0) & self.mask
         if self.id < self.partner_id[0]:
-            return {"a_i": 6, "b_i": 3, "c_i": 54}
+            return {"a_i": a_0, "b_i": b_0, "c_i": c_0}
         else:
-            return {"a_i": 6, "b_i": 3, "c_i": 18}
+            return {"a_i": a_1, "b_i": b_1, "c_i": c_1}
+
+    def _local_truncate(self, z_i):
+        # Mohassel-Zhang local truncation for 2 parties.
+        # Party 0 logical-shifts; party 1 negates, shifts, negates back.
+        # Reconstructs z >> f mod 2^N with failure prob ~|z|/2^N; on failure
+        # the error is exactly 2^(N-f), so it's not silent.
+        if self.id < self.partner_id[0]:
+            return (z_i >> self.f) & self.mask
+        else:
+            return (-(((-z_i) & self.mask) >> self.f)) & self.mask
 
     def _create_additive_shares(self, secret):
         shares = []
@@ -96,16 +125,19 @@ class BeaverMultiplicationAnalyzer(StarAnalyzer):
 
         z_i = []
         for i in range(len(d)):
-            term_ea = (e[i] * self.triple["a_i"]) >> self.f
-            term_db = (d[i] * self.triple["b_i"]) >> self.f
-            term_de = (d[i] * e[i]) >> self.f
+            # Compute the un-truncated share of x*y in the ring: shifting each
+            # term by f independently breaks once shares wrap mod 2^64.
+            term_ea = (e[i] * self.triple["a_i"]) & self.mask
+            term_db = (d[i] * self.triple["b_i"]) & self.mask
+            term_de = (d[i] * e[i]) & self.mask
 
             z_val = (self.triple["c_i"] + term_ea + term_db) % self.ringsize
 
             if self.id < self.partner_id[0]:
                 z_val = (z_val + term_de) % self.ringsize
 
-            z_i.append(z_val)
+            # Apply FX truncation as the final step on the share.
+            z_i.append(self._local_truncate(z_val))
         print(f"{self.id} - z_i: {z_i}")
         return {"z_i": z_i}
 
@@ -135,16 +167,17 @@ class BeaverAggregator(StarAggregator):
         return self.num_iterations >= self.max_iter - 1
 
 
-# if __name__ == "__main__":
-#     secret_1 = [random.randint(1, 100) for _ in range(3)] # dynamic random secret values for node 0
-#     secret_2 = [random.randint(1, 100) for _ in range(3)] # dynamic random secret values for node 1
-#
-#     StarModelTester(
-#         data_splits=[secret_1, secret_2],
-#         analyzer=BeaverMultiplicationAnalyzer,
-#         aggregator=BeaverAggregator,
-#         data_type='s3',
-#         simple_analysis=False
-#     )
-#
-#     print(f"Expected: {[a * b for a, b in zip(secret_1, secret_2)]}")
+if __name__ == "__main__":
+    secret_1 = [random.randint(1, 100) for _ in range(3)]  # dynamic random secret values for node 0
+    secret_2 = [random.randint(1, 100) for _ in range(3)]  # dynamic random secret values for node 1
+
+    print(int.from_bytes(random.randbytes(8), "big", signed=False))
+    StarModelTester(
+        data_splits=[secret_1, secret_2],
+        analyzer=BeaverMultiplicationAnalyzer,
+        aggregator=BeaverAggregator,
+        data_type="s3",
+        simple_analysis=False,
+    )
+
+    print(f"Expected: {[a * b for a, b in zip(secret_1, secret_2)]}")
