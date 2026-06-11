@@ -169,30 +169,30 @@ typing = ["typing-extensions (>=4.12.2) ; python_version < \"3.11\""]
 
 [[package]]
 name = "flame"
-version = "0.5.1"
+version = "0.6.5"
 description = ""
 optional = false
-python-versions = "^3.9"
+python-versions = ">=3.9,<4.0"
 groups = ["main"]
 files = []
 develop = false
 
 [package.dependencies]
-flamesdk = {git = "https://github.com/PrivateAIM/python-sdk.git", branch = "proxy-nodes"}
+flamesdk = {git = "https://github.com/PrivateAIM/python-sdk.git", tag = "0.6.0"}
 opendp = ">=0.12.1,<0.13.0"
 
 [package.source]
 type = "git"
 url = "https://github.com/PrivateAIM/python-sdk-patterns.git"
-reference = "proxy-nodes"
-resolved_reference = "797b7b3f1d7e66b935e34101a3af357f2ba3abea"
+reference = "HEAD"
+resolved_reference = "d5446ec267f5fc360ebce7c497a9d84014a1238e"
 
 [[package]]
 name = "flamesdk"
-version = "0.4.2"
+version = "0.6.0"
 description = ""
 optional = false
-python-versions = "^3.9"
+python-versions = ">=3.9"
 groups = ["main"]
 files = []
 develop = false
@@ -205,8 +205,8 @@ uvicorn = "^0.27.1"
 [package.source]
 type = "git"
 url = "https://github.com/PrivateAIM/python-sdk.git"
-reference = "proxy-nodes"
-resolved_reference = "ee95eb9d1ef410ee0e2d221422f8665a944d9b5d"
+reference = "0.6.0"
+resolved_reference = "f0581282285e92e7b69207fe3ca7826de90cbb79"
 
 [[package]]
 name = "h11"
@@ -928,4 +928,4 @@ dev = ["pytest", "setuptools"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4.0"
-content-hash = "1eb402049551b421e147243c6884e7dd3d7e7a10d20d19b0ff734e680170cfa3"
+content-hash = "fe1e366c3349dd4fa4c188dcbc9dca1d3bd82566bcfdf9788a352a522c6937cf"

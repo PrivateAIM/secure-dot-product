@@ -8,7 +8,7 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.10,<4.0"
 dependencies = [
-    "flame @ git+https://github.com/PrivateAIM/python-sdk-patterns.git@proxy-nodes"
+    "flame @ git+https://github.com/PrivateAIM/python-sdk-patterns.git"
 ]
 license = "Apache-2.0"
 

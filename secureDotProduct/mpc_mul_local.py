@@ -1,6 +1,7 @@
 import random
 import secrets
-from flame.star import StarAnalyzer, StarAggregator, StarModelTester
+
+from flame.star import StarAggregator, StarAnalyzer, StarModelTester
 
 # --- CONFIGURATION ---
 RING_BITS = 64
@@ -170,6 +171,9 @@ class BeaverAggregator(StarAggregator):
 if __name__ == "__main__":
     secret_1 = [random.randint(1, 100) for _ in range(3)]  # dynamic random secret values for node 0
     secret_2 = [random.randint(1, 100) for _ in range(3)]  # dynamic random secret values for node 1
+
+    print(f"Secret 1: {secret_1}")
+    print(f"Secret 2: {secret_2}")
 
     print(int.from_bytes(random.randbytes(8), "big", signed=False))
     StarModelTester(
