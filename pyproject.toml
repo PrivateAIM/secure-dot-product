@@ -8,12 +8,12 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.10,<4.0"
 dependencies = [
-    "flame @ file:///Users/sesame/halta/python-sdk-patterns"
+    "flame @ git+https://github.com/PrivateAIM/python-sdk-patterns.git"
 ]
 license = "Apache-2.0"
 
 [tool.poetry]
-packages = [{ include = "project" }]
+packages = [{ include = "secureDotProduct" }]
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.3.0"
