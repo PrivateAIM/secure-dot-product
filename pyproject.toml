@@ -6,9 +6,9 @@ authors = [
     {name = "Maximilian Jugl", email = "Maximilian.Jugl@medizin.uni-leipzig.de"}
 ]
 readme = "README.md"
-requires-python = ">=3.10,<4.0"
+requires-python = ">=3.12,<4.0"
 dependencies = [
-    "flame @ git+https://github.com/PrivateAIM/python-sdk-patterns.git"
+    "flame @ git+https://github.com/PrivateAIM/python-sdk-patterns.git@proxy-nodes"
 ]
 license = "Apache-2.0"
 
@@ -19,6 +19,7 @@ packages = [{ include = "secureDotProduct" }]
 pytest = ">=8.3.0"
 ruff = ">=0.9.0"
 pre-commit = ">=4.0.0"
+numpy = "^2.5.1"
 
 [tool.ruff]
 line-length = 120
