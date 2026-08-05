@@ -15,6 +15,13 @@ Secure two-party element-wise multiply and pairwise dot-product kernel over two 
 
 Both protocol files import from `mpc_core`, so keep the three together (same directory or on `PYTHONPATH`).
 
+See [PROXY_DEALER_KERNEL.md](PROXY_DEALER_KERNEL.md) for a diagrammed walkthrough of the
+kernel protocol: topology, tiling layout, the 2-round message sequence, and the trust model.
+
+See [MULTICOHORT_RBF_FLOW.md](MULTICOHORT_RBF_FLOW.md) for the N-cohort, multi-modality RBF
+variant: why it decomposes into pairwise 2-party runs, the round-by-round evaluation flow,
+and a fully worked 4-cohort example.
+
 ## Protocol (2 rounds, `simple_analysis=False`)
 
 **Topology:** the framework relays analyzers → proxy → aggregator, but the proxy here is *only* a triple dealer. Sensitive data bypasses it via explicit side channels (message categories), so analyzers return `None`.
