@@ -7,10 +7,13 @@ Everything below uses the worked example from the file's `__main__`:
 
 | | |
 |---|---|
-| **Cohorts** | 4 — `site_a` 3 patients, `site_b` 5, `site_c` 4, `site_d` 2 → **N = 14** |
+| **Cohorts** | 5 — `site_a` 3 patients, `site_b` 5, `site_c` 4, `site_d` 3, `site_e` 5 → **N = 20** |
 | **Modalities** | 3 — `imaging` d=2, `labs` d=5, `omics` d=4 → Σd = 11 |
-| **Pairs** | 6 |
-| **Output** | 3 kernels, each 14 × 14, sharing identical axes |
+| **Pairs** | 10 |
+| **Output** | 3 kernels, each 20 × 20, sharing identical axes |
+
+Note `site_a`/`site_d` and `site_b`/`site_e` share a patient count. That is deliberate
+and must work: the protocol keys cohorts by **node id**, never by row count.
 
 ---
 
@@ -22,49 +25,58 @@ flowchart TB
         A[site_a<br/>3 patients<br/>3 matrices]
         B[site_b<br/>5 patients<br/>3 matrices]
         C[site_c<br/>4 patients<br/>3 matrices]
-        D[site_d<br/>2 patients<br/>3 matrices]
+        D[site_d<br/>3 patients<br/>3 matrices]
+        E[site_e<br/>5 patients<br/>3 matrices]
     end
 
-    P[Beaver Dealer<br/>PairwiseBeaverDealerProxy<br/>learns only 6 pair lengths<br/>never sees data, masks or output]
+    P[Beaver Dealer<br/>PairwiseBeaverDealerProxy<br/>learns only 10 pair lengths<br/>never sees data, masks or output]
     G[Aggregator<br/>MultiCohortRBFAggregator<br/>sums shares, exponentiates,<br/>stitches blocks]
 
     P -.triples per pair.-> A
     P -.triples per pair.-> B
     P -.triples per pair.-> C
     P -.triples per pair.-> D
+    P -.triples per pair.-> E
 
     A --- B
     A --- C
     A --- D
+    A --- E
     B --- C
     B --- D
+    B --- E
     C --- D
+    C --- E
+    D --- E
 
     A --> G
     B --> G
     C --> G
     D --> G
+    E --> G
 
-    G --> OUT[3 kernels<br/>each 14 x 14]
+    G --> OUT[3 kernels<br/>each 20 x 20]
 ```
 
-The six lines between cohorts are the six **peer-to-peer** Beaver exchanges. They
-never pass through the dealer. The dealer's only input is a table of six integers.
+The ten lines between cohorts are the ten **peer-to-peer** Beaver exchanges. They
+never pass through the dealer. The dealer's only input is a table of ten integers.
+Their density is the point: exchanges grow as S², which is the dominant cost here.
 
 ---
 
-## 1. Why this is six 2-party problems, not one 4-party problem
+## 1. Why this is ten 2-party problems, not one 5-party problem
 
-The joint kernel is a 4 × 4 block matrix. Look at where each block's data comes from:
+The joint kernel is a 5 × 5 block matrix. Look at where each block's data comes from:
 
 Rows and columns are grouped by cohort, so each cell below is a whole block:
 
-| | **site_a** | **site_b** | **site_c** | **site_d** |
-|---|---|---|---|---|
-| **site_a** | `LOCAL` | `MPC` | `MPC` | `MPC` |
-| **site_b** | transpose | `LOCAL` | `MPC` | `MPC` |
-| **site_c** | transpose | transpose | `LOCAL` | `MPC` |
-| **site_d** | transpose | transpose | transpose | `LOCAL` |
+| | **site_a** | **site_b** | **site_c** | **site_d** | **site_e** |
+|---|---|---|---|---|---|
+| **site_a** | `LOCAL` | `MPC` | `MPC` | `MPC` | `MPC` |
+| **site_b** | transpose | `LOCAL` | `MPC` | `MPC` | `MPC` |
+| **site_c** | transpose | transpose | `LOCAL` | `MPC` | `MPC` |
+| **site_d** | transpose | transpose | transpose | `LOCAL` | `MPC` |
+| **site_e** | transpose | transpose | transpose | transpose | `LOCAL` |
 
 Where the work goes:
 
@@ -83,14 +95,14 @@ flowchart LR
 
 No block ever mixes three cohorts. That is the whole reason no new cryptography is
 needed: `beaver_multiply`, and in particular the Mohassel–Zhang `_local_truncate`,
-implement a strictly **2-party** protocol. It is reused unchanged, six times.
+implement a strictly **2-party** protocol. It is reused unchanged, ten times.
 
-Accounting for the 14 × 14 = 196 entries per modality:
+Accounting for the 20 × 20 = 400 entries per modality:
 
 | source | entries |
 |---|---|
-| diagonal blocks, computed locally in the clear | 3² + 5² + 4² + 2² = **54** |
-| off-diagonal, from 71 secure patient-pairs, mirrored | 71 × 2 = **142** |
+| diagonal blocks, computed locally in the clear | 3² + 5² + 4² + 3² + 5² = **84** |
+| off-diagonal, from 158 secure patient-pairs, mirrored | 158 × 2 = **316** |
 
 ---
 
@@ -102,30 +114,33 @@ sequenceDiagram
     participant A as site_a
     participant B as site_b
     participant C as site_c
-    participant D as site_d
+    participant E as site_e
     participant P as Dealer
 
-    Note over A,D: every site broadcasts its shapes to every peer
+    Note over A,E: every site broadcasts its shapes to every peer
     A->>B: shape_info
     A->>C: shape_info
-    A->>D: shape_info
-    Note over B,D: and symmetrically, all 12 directed messages
+    A->>E: shape_info
+    Note over B,E: and symmetrically, all 20 directed messages across the 5 sites
 
-    Note over A,D: each site now independently derives the SAME global picture
-    Note over A,D: validate same modality set everywhere, same d per modality across sites, one patient count per site
-    Note over A,D: site_ids sorted, 6 pairs enumerated, pair_lengths computed
+    Note over A,E: each site now independently derives the SAME global picture
+    Note over A,E: validate same modality set everywhere, same d per modality across sites, one patient count per site
+    Note over A,E: site_ids sorted, 10 pairs enumerated, pair_lengths computed
 
-    A->>P: n_elements with all 6 pair lengths
-    B->>P: n_elements with all 6 pair lengths
-    C->>P: n_elements with all 6 pair lengths
-    D->>P: n_elements with all 6 pair lengths
+    A->>P: n_elements with all 10 pair lengths
+    B->>P: n_elements with all 10 pair lengths
+    C->>P: n_elements with all 10 pair lengths
+    E->>P: n_elements with all 10 pair lengths
 
     Note over P: tables are identical so take any one. For each pair generate that many triples, split each into 2 additive shares
     P->>A: beaver_triple - ONE message, bundle keyed by pair
     P->>B: beaver_triple - ONE message, bundle keyed by pair
     P->>C: beaver_triple - ONE message, bundle keyed by pair
-    P->>D: beaver_triple - ONE message, bundle keyed by pair
+    P->>E: beaver_triple - ONE message, bundle keyed by pair
 ```
+
+*(`site_d` is omitted from the diagram only to keep it legible; it behaves exactly
+like the others.)*
 
 Three things are load-bearing here.
 
@@ -136,30 +151,38 @@ construction rather than by negotiation.
 **The patient-count check.** Row *i* must be patient *i* in every modality at a site, so
 all modalities there must report the same row count. This is what makes the three
 kernels come out with identical axes and therefore combinable downstream. Cohorts
-may still differ from each other.
+may still differ from each other — and two cohorts may well share the same count, as
+`site_a`/`site_d` and `site_b`/`site_e` do here. Cohorts are told apart by node id.
 
-**The dealer sends one message, not six.** `await_intermediate_data` keeps only the
-newest message per sender-and-category pair, so six separate `beaver_triple` messages
+**The dealer sends one message, not ten.** `await_intermediate_data` keeps only the
+newest message per sender-and-category pair, so ten separate `beaver_triple` messages
 would silently collapse to the last one. Bundling them into a single dict avoids this.
 
 ### Triples ordered, for the example
 
 | pair | patients | × Σd | triples |
 |---|---|---|---|
-| a–d | 3 × 2 = 6 | 11 | 66 |
-| a–c | 3 × 4 = 12 | 11 | 132 |
 | a–b | 3 × 5 = 15 | 11 | 165 |
-| d–c | 2 × 4 = 8 | 11 | 88 |
-| d–b | 2 × 5 = 10 | 11 | 110 |
-| c–b | 4 × 5 = 20 | 11 | 220 |
-| | | | **781** |
+| a–c | 3 × 4 = 12 | 11 | 132 |
+| a–d | 3 × 3 = 9 | 11 | 99 |
+| a–e | 3 × 5 = 15 | 11 | 165 |
+| b–c | 5 × 4 = 20 | 11 | 220 |
+| b–d | 5 × 3 = 15 | 11 | 165 |
+| b–e | 5 × 5 = 25 | 11 | 275 |
+| c–d | 4 × 3 = 12 | 11 | 132 |
+| c–e | 4 × 5 = 20 | 11 | 220 |
+| d–e | 3 × 5 = 15 | 11 | 165 |
+| | | | **1738** |
+
+Listed by cohort name for readability. At runtime the ordering is by node id, which
+is assigned randomly per run.
 
 ---
 
 ## 3. Round 1 — one Beaver exchange per pair
 
 Each site walks the global pair list in sorted order and skips pairs it is not in.
-`site_a` therefore runs three exchanges; every site runs `S-1 = 3`.
+`site_a` therefore runs four exchanges; every site runs `S-1 = 4`.
 
 ```mermaid
 sequenceDiagram
@@ -231,10 +254,10 @@ have revealed absolute position that the kernel itself hides.
 
 ```mermaid
 flowchart TB
-    IN[final_shares from all 4 sites<br/>dist_shares per pair, K_local per modality]
+    IN[final_shares from all 5 sites<br/>dist_shares per pair, K_local per modality]
     IN --> CHK[validate all sites present,<br/>all agree on pair layout,<br/>share lengths match layout]
 
-    CHK --> LOOP[for each of the 6 pairs]
+    CHK --> LOOP[for each of the 10 pairs]
     LOOP --> SUM[w = share_x + share_y mod 2^64]
     SUM --> SLICE[slice w per modality using segment offsets]
     SLICE --> BLK[block-sum each run of d, then decode]
@@ -244,7 +267,7 @@ flowchart TB
 
     CROSS --> ASM[assemble per modality]
     LOCAL[K_local diagonal blocks<br/>already exponentiated] --> ASM
-    ASM --> OUT[kernels, site_ids, patients<br/>3 matrices, each 14 x 14]
+    ASM --> OUT[kernels, site_ids, patients<br/>3 matrices, each 20 x 20]
 ```
 
 Assembly walks `site_ids` in sorted order for both rows and columns. For block `s,t`
@@ -261,7 +284,7 @@ Because every modality now shares one set of axes, the axis metadata — `site_i
 ```mermaid
 flowchart LR
     subgraph DEALER[Dealer sees]
-        D1[6 pair lengths only]
+        D1[10 pair lengths only]
     end
     subgraph SITE[A cohort sees]
         S1[its own data]
@@ -276,7 +299,7 @@ flowchart LR
 
 | party | can reconstruct | cannot |
 |---|---|---|
-| Dealer | the 6 pair lengths | any data, mask, or output |
+| Dealer | the 10 pair lengths | any data, mask, or output |
 | Cohort | its own rows | peers' rows — shares are uniform in the ring |
 | Aggregator | the kernels, and geometry up to a rigid motion | absolute positions, raw features |
 
@@ -291,10 +314,10 @@ secret-shared and approximating `exp` inside MPC.
 
 | quantity | scaling | example |
 |---|---|---|
-| pairs | S(S−1)/2 | 6 |
-| triples | Σ over pairs, Σ over modalities of n_s·n_t·d | 781 |
-| peer round trips per site | 2(S−1) | 6 |
-| dealer messages | S, one bundle each | 4 |
+| pairs | S(S−1)/2 | 10 |
+| triples | Σ over pairs, Σ over modalities of n_s·n_t·d | 1738 |
+| peer round trips per site | 2(S−1) | 8 |
+| dealer messages | S, one bundle each | 5 |
 | rounds | 2, independent of S and of modality count | 2 |
 
 Triples grow quadratically in the number of sites. Rounds do not — adding cohorts or

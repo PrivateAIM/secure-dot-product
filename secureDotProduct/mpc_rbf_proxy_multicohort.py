@@ -303,7 +303,7 @@ if __name__ == "__main__":
     # Features are per modality and shared by every site. Patients are per SITE and
     # shared by every modality at that site -- row i is patient i everywhere.
     FEATURES = {"omics": 4, "imaging": 2, "labs": 5}
-    PATIENTS = {"site_a": 3, "site_b": 5, "site_c": 4, "site_d": 2, "site_e": 6}
+    PATIENTS = {"site_a": 3, "site_b": 5, "site_c": 4, "site_d": 3, "site_e": 5}
     MODALITIES = sorted(FEATURES)
 
     rng = random.Random(0)
@@ -315,11 +315,42 @@ if __name__ == "__main__":
 
     cohorts = {name: {m: make(n, FEATURES[m]) for m in MODALITIES} for name, n in PATIENTS.items()}
 
-    # Patient counts must be unique so the harness can map runtime node ids
-    # (random UUIDs) back to the inputs it generated.
-    signatures = {n: name for name, n in PATIENTS.items()}
-    if len(signatures) != len(PATIENTS):
-        raise SystemExit("test spec needs a unique patient count per site")
+    def identify_sites(probe: str) -> dict[str, str]:
+        """Map runtime node ids back to the cohort names this harness generated.
+
+        ProxyModelTester assigns random UUIDs, so the harness has to work out which
+        node received which matrices before it can build a plaintext reference.
+        Matching on the in-the-clear diagonal block does that from data content, so
+        it holds however the patient counts fall -- in particular it does NOT need
+        them to be unique. Two sites with the same number of patients are fine.
+
+        Nothing here reflects a protocol constraint: the protocol keys sites by node
+        id, which is unique by construction, and never inspects row counts to tell
+        cohorts apart.
+
+        Args:
+            probe: Modality whose diagonal blocks are used as the fingerprint.
+
+        Returns:
+            Node id -> cohort name.
+        """
+        K = np.array(kernels[probe])
+        offset, resolved, claimed = 0, {}, set()
+        for site in site_ids:
+            n = patients[site]
+            block = K[offset : offset + n, offset : offset + n]
+            offset += n
+            for name, own in cohorts.items():
+                if name in claimed or len(own[probe]) != n:
+                    continue
+                X = np.array(own[probe])
+                if np.allclose(block, rbf_kernel_matrix(X, X, GAMMA), atol=1e-9):
+                    resolved[site] = name
+                    claimed.add(name)
+                    break
+            else:
+                raise SystemExit(f"could not identify node {site}")
+        return resolved
 
     Path("results").mkdir(exist_ok=True)
     rp = "results/rbf_multicohort_result.pkl"
@@ -337,8 +368,7 @@ if __name__ == "__main__":
     result = pickle.loads(Path(rp).read_bytes())
     kernels, site_ids, patients = result["kernels"], result["site_ids"], result["patients"]
 
-    # Map each runtime node id back to the cohort it was handed.
-    id_to_name = {node_id: signatures[patients[node_id]] for node_id in site_ids}
+    id_to_name = identify_sites(MODALITIES[0])
     print("\nsite order:", [id_to_name[s] for s in site_ids])
 
     total = sum(PATIENTS.values())
